@@ -1,0 +1,67 @@
+{
+  "name": "nightcity-modbox",
+  "version": "1.0.0",
+  "description": "NightCity Modbox - 赛博朋克 2077 模组包管理器",
+  "main": "./out/main/index.js",
+  "author": "NightCity Modbox",
+  "license": "MIT",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "start": "electron-vite preview",
+    "build": "electron-vite build",
+    "dist": "electron-vite build && electron-builder --win",
+    "dist:dir": "electron-vite build && electron-builder --win --dir"
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.3.1",
+    "@huggingface/transformers": "^4.3.2",
+    "element-plus": "^2.8.8",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.1",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "vite": "^5.4.11"
+  },
+  "build": {
+    "appId": "com.nightcity.modbox",
+    "productName": "NightCity Modbox",
+    "asar": true,
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "win": {
+      "icon": "build/icon.png",
+      "artifactName": "NightCity-Modbox-${version}-setup.${ext}",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false,
+      "shortcutName": "NightCity Modbox"
+    },
+    "extraResources": [
+      {
+        "from": "tools",
+        "to": "tools"
+      }
+    ]
+  }
+}

@@ -1,0 +1,7 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" fill="#101114"/>
+  <rect x="44" y="44" width="424" height="424" fill="none" stroke="#F5E003" stroke-opacity="0.28" stroke-width="4"/>
+  <rect x="44" y="44" width="424" height="12" fill="#F5E003"/>
+  <text x="256" y="312" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="190" font-weight="800" letter-spacing="2" fill="#F5E003">NC</text>
+  <rect x="168" y="344" width="176" height="12" fill="#F5E003"/>
+</svg>

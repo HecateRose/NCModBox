@@ -1,0 +1,13 @@
+node_modules
+out
+release
+dist
+*.log
+.DS_Store
+
+# 开发/测试产物（含本机截图与探测数据，不入库）
+screenshots
+screenshots-*
+probe-search.json
+backfill.log
+*.bundle
