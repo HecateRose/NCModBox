@@ -132,6 +132,7 @@ const fallback = {
   isMaximized: async () => false,
   openExternal: async (url) => window.open(url, '_blank'),
   collectLogs: async () => ({ sources: [], error: '浏览器预览模式下不可用' }),
+  logsSummary: async () => ({ sources: 0, errors: 0, warns: 0 }),
   scanConflicts: async () => ({ available: false, error: '浏览器预览模式下不可用' }),
   onStateChanged: () => () => {},
   onMaximized: () => () => {}

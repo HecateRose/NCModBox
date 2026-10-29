@@ -12,7 +12,13 @@ const navItems = computed(() => [
   { to: '/history', label: '已下载', icon: 'Files', count: state.historyFiles.length },
   { to: '/installed', label: '包体记录', icon: 'Box', count: state.downloads.length },
   { to: '/deploy', label: '部署', icon: 'Upload', count: state.deploy.deployed.length },
-  { to: '/logs', label: '诊断日志', icon: 'Document', count: 0 }
+  {
+    to: '/logs',
+    label: '诊断日志',
+    icon: 'Document',
+    count: state.logsSummary.sources || 0,
+    title: `${state.logsSummary.sources || 0} 个日志源 · ${state.logsSummary.errors || 0} 条错误`
+  }
 ])
 
 async function onLaunch() {

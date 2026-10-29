@@ -78,6 +78,7 @@ const api = {
   openExternal: (url) => ipcRenderer.invoke('shell:open-external', url),
 
   collectLogs: (payload) => ipcRenderer.invoke('logs:collect', payload),
+  logsSummary: () => ipcRenderer.invoke('logs:summary'),
   scanConflicts: () => ipcRenderer.invoke('conflicts:scan'),
 
   onStateChanged: (callback) => {

@@ -56,7 +56,8 @@ export const state = reactive({
   },
 
   hasKey: false,
-  keyMasked: ''
+  keyMasked: '',
+  logsSummary: { sources: 0, errors: 0, warns: 0 }
 })
 
 const timers = new Map()
@@ -89,6 +90,7 @@ export async function initModStore() {
     // 广播只带原始 state，派生字段需要重新算一遍
     refreshDownloads().catch(() => {})
     refreshHistory().catch(() => {})
+  refreshLogsSummary().catch(() => {})
   })
 
   watch(
@@ -542,6 +544,16 @@ export function isDeployed(id) {
 /* ------------------------------ 诊断 ------------------------------ */
 
 /** 收集游戏日志（主进程读取，渲染层只负责展示） */
+/** 轻量刷新日志统计（侧边栏诊断日志计数用） */
+export async function refreshLogsSummary() {
+  try {
+    const result = await bridge.logsSummary()
+    state.logsSummary = result || { sources: 0, errors: 0, warns: 0 }
+  } catch {
+    /* 忽略 */
+  }
+}
+
 export async function collectLogs(payload) {
   return bridge.collectLogs(payload || {})
 }

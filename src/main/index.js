@@ -635,6 +635,16 @@ function registerIpc() {
 
   ipcMain.handle('game:stop', () => stopGame())
 
+  ipcMain.handle('logs:summary', () => {
+    const paths = getPaths()
+    const result = collectLogs(paths.gamePath, { maxLines: 40 })
+    return {
+      sources: (result.sources || []).length,
+      errors: result.errorCount || 0,
+      warns: result.warnCount || 0
+    }
+  })
+
   ipcMain.handle('logs:collect', (_event, payload) => {
     const paths = getPaths()
     return collectLogs(paths.gamePath, payload || {})
