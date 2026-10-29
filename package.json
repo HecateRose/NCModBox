@@ -1,6 +1,6 @@
 {
   "name": "nightcity-modbox",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "NightCity Modbox - 赛博朋克 2077 模组包管理器",
   "main": "./out/main/index.js",
   "author": "NightCity Modbox",
