@@ -52,6 +52,26 @@ export function runCapture({ mainWindow, openModWindow, resolveModId }) {
     }
   }
 
+  /** 等待 hash 路由切换完成（等 hash 匹配 + 页面标题元素出现） */
+  async function waitPath(win, hash, timeout = 15000) {
+    return win.webContents.executeJavaScript(
+      `new Promise((resolve) => {
+        const started = Date.now()
+        const timer = setInterval(() => {
+          if (location.hash === '${hash}' && document.querySelector('.page-head-text h2')) {
+            clearInterval(timer)
+            resolve(true)
+            return
+          }
+          if (Date.now() - started > ${timeout}) {
+            clearInterval(timer)
+            resolve(false)
+          }
+        }, 150)
+      })`
+    )
+  }
+
   async function waitFor(win, selector, timeout = 20000) {
     try {
       return await win.webContents.executeJavaScript(
@@ -118,17 +138,21 @@ export function runCapture({ mainWindow, openModWindow, resolveModId }) {
     await wait(1000)
 
     await mainWindow.webContents.executeJavaScript("location.hash = '#/favorites'")
-    await wait(900)
+    await waitPath(mainWindow, '#/favorites')
+    await wait(500)
     await shot(mainWindow, '02-favorites.png', VIEWPORT)
 
     await mainWindow.webContents.executeJavaScript("location.hash = '#/installed'")
-    await wait(900)
+    await waitPath(mainWindow, '#/installed')
+    await wait(500)
     await shot(mainWindow, '03-installed.png', VIEWPORT)
 
     await mainWindow.webContents.executeJavaScript("location.hash = '#/deploy'")
-    await wait(3000)
+    await waitPath(mainWindow, '#/deploy')
+    await wait(1200)
     await shot(mainWindow, '03b-deploy.png', VIEWPORT)
-    await mainWindow.webContents.executeJavaScript("location.hash = '#/installed'")
+    await mainWindow.webContents.executeJavaScript("location.hash = '#/history'")
+    await waitPath(mainWindow, '#/history')
     await wait(1200)
     await shot(mainWindow, '03c-downloads.png', VIEWPORT)
 

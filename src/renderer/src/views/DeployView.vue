@@ -913,10 +913,12 @@ onBeforeUnmount(() => {
     <section class="panel">
       <div class="panel-head-row">
         <h3 class="panel-title">冲突扫描</h3>
-        <el-button class="btn-ghost" size="small" :loading="busy" @click="onAutoSort">自动排序</el-button>
-        <el-button class="btn-ghost" size="small" :loading="scanBusy" @click="onScanConflicts">
-          {{ conflicts ? '重新扫描' : '开始扫描' }}
-        </el-button>
+        <div class="panel-actions">
+          <el-button class="btn-ghost" size="small" :loading="busy" @click="onAutoSort">自动排序</el-button>
+          <el-button class="btn-ghost" size="small" :loading="scanBusy" @click="onScanConflicts">
+            {{ conflicts ? '重新扫描' : '开始扫描' }}
+          </el-button>
+        </div>
       </div>
       <p class="panel-sub">
         扫描 <code>archive/pc/mod</code> 的文件级冲突。优先调用 red4-conflicts.exe（放在游戏根目录或

@@ -571,6 +571,18 @@ export async function refreshDeploy() {
   } finally {
     state.deploy.loading = false
   }
+  // 外部变更需要逐条 stat，异步补上，不阻塞首屏渲染
+  refreshDeployChanges()
+}
+
+/** 只刷新外部变更（慢操作，异步补） */
+export async function refreshDeployChanges() {
+  try {
+    const changes = await bridge.getDeployChanges()
+    if (Array.isArray(changes)) state.deploy.changes = changes
+  } catch {
+    /* 忽略 */
+  }
 }
 
 export async function importStagedMod() {

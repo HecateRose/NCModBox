@@ -250,7 +250,8 @@ function registerIpc() {
       legacyOrder: manifest.legacyOrder || [],
       redmodOrder: manifest.redmodOrder || [],
       redmod: hasRedmodCopy ? manifest.redmod || null : null,
-      changes: gamePath ? detectExternalChanges(gamePath) : [],
+      // changes 单独异步拉取（detectExternalChanges 要逐条 stat，放首屏会拖慢页面）
+      changes: [],
       dependencies: gamePath ? checkDependencies(gamePath) : { missing: [], checked: [] },
       modRequirements: { missing: checkModRequirements(gamePath) },
       preflight: gamePath ? preflight(gamePath, stagingPath) : { errors: [], warnings: [] },
