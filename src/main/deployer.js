@@ -677,6 +677,26 @@ export function resolveExternalChange({ gamePath, path: deployedPath, action } =
   return { ok: false, error: '未知操作（只支持 accept / restore）' }
 }
 
+/** 备份目录：部署时覆盖未管理文件前先留一份，可手动恢复 */
+function backupDir() {
+  return path.join(app.getPath('userData'), 'deploy-backup')
+}
+
+/** 把即将被覆盖的未管理文件备份到 deploy-backup/<时间戳>/<相对路径>，返回备份路径 */
+function backupUnmanagedFile(gamePath, deployedPath) {
+  const target = path.join(gamePath, deployedPath.split('/').join(path.sep))
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const dest = path.join(backupDir(), stamp, deployedPath)
+  try {
+    fs.mkdirSync(path.dirname(dest), { recursive: true })
+    fs.copyFileSync(target, dest)
+    return dest
+  } catch (err) {
+    console.error('[modbox] 未管理文件备份失败', err)
+    return ''
+  }
+}
+
 /** 比较两个文件内容是否一致（大小 + sha1），用于接管已存在但不受管理的文件 */
 function isSameContent(a, b) {
   try {
@@ -776,13 +796,16 @@ export function deploy(gamePath, stagingPath, { onlyIds = null } = {}) {
 
       fs.mkdirSync(path.dirname(target), { recursive: true })
       if (fs.existsSync(target)) {
-        // 目标已存在但 manifest 里没有：如果内容与 staging 源完全一致，
-        // 说明是同一版本文件被外部放置或旧记录丢失，直接接管（移除后重建硬链接）；
-        // 内容不一致才阻止，避免覆盖用户手动改过的文件。
+        // 目标已存在但 manifest 里没有（旧版本残留 / 撤销时被保护性保留 / 外部放置）：
+        // 内容一致直接接管；不一致时先备份再覆盖——mod 更新就是这种场景，
+        // 不应因为旧文件存在就阻止部署。备份在 userData/deploy-backup/<时间戳>/。
         if (!isSameContent(entry.stagingPath, target)) {
-          throw new Error(
-            `目标已存在且不受管理：${entry.deployedPath}（与 staging 中的文件内容不一致，请先手动确认或删除该文件）`
-          )
+          const backupPath = backupUnmanagedFile(gamePath, entry.deployedPath)
+          replaced.push({
+            path: entry.deployedPath,
+            previous: backupPath ? '未管理旧文件（已备份）' : '未管理旧文件（备份失败）',
+            current: entry.modName
+          })
         }
         fs.unlinkSync(target)
       }
