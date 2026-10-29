@@ -475,9 +475,13 @@ export function buildPlan(staging, gamePath, { onlyIds = null } = {}) {
         return
       }
       const isRedmod = mod.types.includes('redmod')
+      let skippedFiles = 0
       mod.files.forEach((file) => {
         const rel = targetFor(mod, file)
-        if (!rel) return
+        if (!rel) {
+          skippedFiles += 1
+          return
+        }
         const stagingFile = path.join(mod.dir, file.split('/').join(path.sep))
         let stat = null
         try {
@@ -498,6 +502,11 @@ export function buildPlan(staging, gamePath, { onlyIds = null } = {}) {
           linkType: isRedmod ? 'copy' : 'hardlink'
         })
       })
+      if (skippedFiles > 0) {
+        warnings.push(
+          mod.name + '：跳过 ' + skippedFiles + ' 个安装器结构文件（fomod / 可选键盘布局等，不影响主体功能）'
+        )
+      }
     })
 
   // 目标重名检查（同一文件被多个 mod 部署）
