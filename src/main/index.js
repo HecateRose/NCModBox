@@ -41,8 +41,7 @@ import {
   setDeployOrder,
   stagingRoot,
   toggleStaged,
-  undeploy
-} from './deployer'
+  undeploy, migrateStagingPaths } from './deployer'
 import { getModImages } from './nexus'
 import { checkDependencies, checkModRequirements } from './dependencies'
 import { collectLogs } from './logs'
@@ -702,6 +701,12 @@ function registerIpc() {
 }
 
 app.whenReady().then(() => {
+    try {
+      const migrated = migrateStagingPaths()
+      if (migrated > 0) console.log('[modbox] 已迁移', migrated, '个旧 staging 记录路径')
+    } catch (err) {
+      console.error('[modbox] staging 迁移失败', err)
+    }
   app.setAppUserModelId('com.nightcity.modbox')
   try {
     reconcileStagingRecords()

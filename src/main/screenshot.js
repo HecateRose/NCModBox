@@ -17,7 +17,9 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const NO_MOTION_CSS =
   '.page-enter-active,.page-leave-active{transition:none !important;}' +
-  '.page-enter-from,.page-leave-to{opacity:1 !important;transform:none !important;}'
+  '.page-enter-from,.page-leave-to{opacity:1 !important;transform:none !important;}' +
+  // 宣传截图隐私：隐藏本地状态标签、操作按钮与侧边状态面板（避免暴露用户配置）
+  '.pill-installed,.chip-plain,.chip-light,.row-actions,.detail-side,.side-card{visibility:hidden !important;}'
 
 export function runCapture({ mainWindow, openModWindow, resolveModId }) {
   const dir = process.env.MODBOX_SHOT

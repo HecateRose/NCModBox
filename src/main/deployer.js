@@ -280,10 +280,17 @@ export function importArchive(zipPath, stagingBase) {
     throw new Error(`解压失败：${(err && err.message) || '未知错误'}`)
   }
 
-  // 很多压缩包会包一层同名目录，此时把根指到那一层
+  // 很多压缩包会包一层同名目录，此时把根指到那一层。
+  // 但如果唯一的顶层目录是游戏根目录本身（red4ext / r6 / bin / archive / mods / engine / sdk），
+  // 说明这个包就是"只有插件目录"的合法结构，下移会剥掉路径前缀、导致类型识别和部署全部错位。
   try {
     const children = fs.readdirSync(dest, { withFileTypes: true })
-    if (children.length === 1 && children[0].isDirectory()) {
+    const GAME_ROOT_DIRS = ['bin', 'r6', 'red4ext', 'archive', 'mods', 'engine', 'sdk']
+    if (
+      children.length === 1 &&
+      children[0].isDirectory() &&
+      !GAME_ROOT_DIRS.includes(children[0].name.toLowerCase())
+    ) {
       dest = path.join(dest, children[0].name)
     }
   } catch {
@@ -320,6 +327,34 @@ export function removeStaged(id) {
   data.mods = data.mods.filter((mod) => mod.id !== id)
   saveStaging(data)
   return data
+}
+
+/**
+ * 迁移旧版 importArchive 留下的错位 staging 记录：
+ * 旧逻辑会把「顶层只有 red4ext/ r6/ bin/ …」的包误当成包装目录剥掉前缀，
+ * 导致类型识别错位（Codeware 因此被拆成 r6/scripts）。这里用当前分类规则重算并修正。
+ */
+export function migrateStagingPaths() {
+  const GAME_ROOT_DIRS = ['bin', 'r6', 'red4ext', 'archive', 'mods', 'engine', 'sdk']
+  const data = loadStaging()
+  let changed = 0
+  data.mods.forEach((mod) => {
+    if (!mod || !mod.dir) return
+    const base = path.basename(mod.dir).toLowerCase()
+    if (!GAME_ROOT_DIRS.includes(base)) return
+    const parent = path.dirname(mod.dir)
+    if (!fs.existsSync(parent) || !fs.existsSync(mod.dir)) return
+    const files = (mod.files || []).map((file) => base + '/' + file)
+    const info = classifyFiles(files)
+    mod.dir = parent
+    mod.files = files
+    mod.types = info.types
+    mod.unclassified = info.unclassified
+    mod.extensions = info.extensions
+    changed += 1
+  })
+  if (changed) saveStaging(data)
+  return changed
 }
 
 export function toggleStaged(id, enabled) {
