@@ -742,15 +742,29 @@ export function deploy(gamePath, stagingPath, { onlyIds = null } = {}) {
   }
 
   const manifest = readManifest()
-  const existing = new Set(manifest.entries.map((entry) => entry.deployedPath.toLowerCase()))
+  const ownedBy = new Map(manifest.entries.map((entry) => [entry.deployedPath.toLowerCase(), entry]))
   const added = []
   const created = []
+  const replaced = [] // 跨 mod 覆盖：记录被顶掉的旧条目
 
   try {
     plan.entries.forEach((entry) => {
       const key = entry.deployedPath.toLowerCase()
-      if (existing.has(key)) return
+      const owner = ownedBy.get(key)
       const target = path.join(gamePath, entry.deployedPath.split('/').join(path.sep))
+
+      if (owner && owner.stagedModId === entry.stagedModId) return // 自己已部署
+
+      if (owner && owner.stagedModId !== entry.stagedModId) {
+        // 同一个文件被另一个 mod 占用：内容一致就跳过；不一致则后者覆盖前者
+        // （典型场景：CHS 汉化补丁覆盖本体同名文件，装了汉化就是要顶掉原版）
+        if (fs.existsSync(target) && isSameContent(entry.stagingPath, target)) return
+        if (fs.existsSync(target)) fs.unlinkSync(target)
+        manifest.entries = manifest.entries.filter((item) => item.deployedPath.toLowerCase() !== key)
+        ownedBy.delete(key)
+        replaced.push({ path: entry.deployedPath, previous: owner.modName, current: entry.modName })
+      }
+
       fs.mkdirSync(path.dirname(target), { recursive: true })
       if (fs.existsSync(target)) {
         // 目标已存在但 manifest 里没有：如果内容与 staging 源完全一致，
@@ -824,9 +838,11 @@ export function deploy(gamePath, stagingPath, { onlyIds = null } = {}) {
     errors: [],
     warnings: [
       ...plan.warnings,
-      ...(hasRedmod && !redmod.ok ? [`REDmod 部署失败：${redmod.error}`] : [])
+      ...(hasRedmod && !redmod.ok ? [`REDmod 部署失败：${redmod.error}`] : []),
+      ...replaced.map((item) => `覆盖冲突：${item.current} 顶替了 ${item.previous} 的 ${item.path}`)
     ],
     added,
+    replaced,
     changes,
     redmod,
     manifest: readManifest()
