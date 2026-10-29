@@ -12,6 +12,7 @@ import {
   reclassifyStaged,
   removeStagedMod,
   rerunRedMod,
+  resolveAllChanges,
   resolveChange,
   runDeploy,
   savePaths,
@@ -368,6 +369,48 @@ async function onRestore(change) {
   }
 }
 
+async function onAcceptAll() {
+  if (!deploy.value.changes.length) return
+  busy.value = true
+  try {
+    const result = await resolveAllChanges('accept')
+    if (result && result.failed) {
+      ElMessage({
+        message: `已接受 ${result.processed} 处，${result.failed} 处失败：${(result.errors || []).slice(0, 2).join('；')}`,
+        type: 'warning',
+        duration: 4200
+      })
+    } else {
+      ElMessage({ message: `已接受全部 ${result ? result.processed : 0} 处外部变更`, type: 'success', duration: 2400 })
+    }
+  } catch (err) {
+    ElMessage({ message: (err && err.message) || '批量接受失败', type: 'error', duration: 3400 })
+  } finally {
+    busy.value = false
+  }
+}
+
+async function onRestoreAll() {
+  if (!deploy.value.changes.length) return
+  busy.value = true
+  try {
+    const result = await resolveAllChanges('restore')
+    if (result && result.failed) {
+      ElMessage({
+        message: `已恢复 ${result.processed} 处，${result.failed} 处失败：${(result.errors || []).slice(0, 2).join('；')}`,
+        type: 'warning',
+        duration: 4200
+      })
+    } else {
+      ElMessage({ message: `已恢复全部 ${result ? result.processed : 0} 处外部变更`, type: 'success', duration: 2400 })
+    }
+  } catch (err) {
+    ElMessage({ message: (err && err.message) || '批量恢复失败', type: 'error', duration: 3400 })
+  } finally {
+    busy.value = false
+  }
+}
+
 /* ------------------------------ 单 Mod 部署 ------------------------------ */
 
 async function onDeployOne(mod) {
@@ -679,11 +722,22 @@ onBeforeUnmount(() => {
     </section>
 
     <section v-if="deploy.changes.length" class="panel">
-      <h3 class="panel-title">检测到外部变更（{{ deploy.changes.length }}）</h3>
+      <div class="panel-head-row">
+        <h3 class="panel-title">检测到外部变更（{{ deploy.changes.length }}）</h3>
+        <div class="panel-actions">
+          <el-button class="btn-ghost" size="small" :loading="busy" @click="onRestoreAll">
+            全部恢复 staging
+          </el-button>
+          <el-button class="btn-dark" size="small" :loading="busy" @click="onAcceptAll">
+            全部接受
+          </el-button>
+        </div>
+      </div>
       <p class="panel-sub">
-        部署前必须逐条处理：<b>恢复 staging</b> 会把游戏目录中的文件改回指向 staging 的硬链接；<b>接受外部状态</b>
+        直接点「全部接受」或「全部恢复」即可批量处理，也可以逐条处理。
+        <b>恢复 staging</b> 会把游戏目录中的文件改回指向 staging 的硬链接；<b>接受外部状态</b>
         则信任当前文件并更新记录（标记为外部文件，之后撤销部署不再删除它）。
-        未处理 refchange / valchange 时部署会被阻止 —— 需求文档 §3.3 不允许自动覆盖。
+        现在部署时也会自动接受外部变更，不需要再手动逐条确认。
       </p>
 
       <div class="mod-list">

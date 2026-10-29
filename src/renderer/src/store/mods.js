@@ -604,6 +604,13 @@ export async function resolveChange(payload) {
   return result
 }
 
+/** 批量处理全部外部变更：accept=全部接受，restore=全部恢复 */
+export async function resolveAllChanges(action = 'accept') {
+  const result = await bridge.resolveAllChanges({ action })
+  await refreshDeploy()
+  return result
+}
+
 /** 已部署的 Legacy archive（按用户排序，未排序的按字母序排在后面） */
 export const legacyOrderList = computed(() => {
   const map = new Map()

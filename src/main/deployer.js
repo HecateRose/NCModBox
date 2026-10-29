@@ -677,6 +677,44 @@ export function resolveExternalChange({ gamePath, path: deployedPath, action } =
   return { ok: false, error: '未知操作（只支持 accept / restore）' }
 }
 
+/**
+ * 批量处理全部外部变更（简化流程：不再逐条点击）。
+ * action = 'accept'（接受外部状态）| 'restore'（恢复 staging 状态）
+ */
+export function resolveAllExternalChanges({ gamePath, action = 'accept' } = {}) {
+  if (!gamePath) return { ok: false, error: '尚未设置游戏目录' }
+  if (isGameRunning()) return { ok: false, error: '游戏正在运行，禁止修改游戏目录' }
+
+  const changes = detectExternalChanges(gamePath)
+  if (!changes.length) return { ok: true, processed: 0, failed: 0, errors: [], changes: [] }
+
+  let processed = 0
+  let failed = 0
+  const errors = []
+  changes.forEach((change) => {
+    try {
+      const result = resolveExternalChange({ gamePath, path: change.path, action })
+      if (result.ok) processed += 1
+      else {
+        failed += 1
+        errors.push(`${change.path}: ${result.error || '处理失败'}`)
+      }
+    } catch (err) {
+      failed += 1
+      errors.push(`${change.path}: ${(err && err.message) || '处理失败'}`)
+    }
+  })
+  return { ok: failed === 0, processed, failed, errors, changes: detectExternalChanges(gamePath) }
+}
+
+/** 部署前自动接受外部变更，返回接受数量（简化流程：不再要求用户逐条确认） */
+function autoAcceptExternalChanges(gamePath) {
+  const changes = detectExternalChanges(gamePath)
+  if (!changes.length) return 0
+  const result = resolveAllExternalChanges({ gamePath, action: 'accept' })
+  return result.processed || 0
+}
+
 /** 备份目录：部署时覆盖未管理文件前先留一份，可手动恢复 */
 function backupDir() {
   return path.join(app.getPath('userData'), 'deploy-backup')
@@ -753,16 +791,10 @@ export function deploy(gamePath, stagingPath, { onlyIds = null } = {}) {
     return { ok: false, errors: check.errors, warnings: check.warnings, added: [], changes: [] }
   }
 
+  // 简化流程：部署时自动接受外部变更，不再要求用户逐条点击确认
+  // （被覆盖的旧文件在部署时会备份到 userData/deploy-backup，可手动恢复）
+  const autoAccepted = autoAcceptExternalChanges(gamePath)
   const changes = detectExternalChanges(gamePath)
-  if (changes.some((item) => item.type === 'refchange' || item.type === 'valchange')) {
-    return {
-      ok: false,
-      errors: ['检测到外部修改，请先在「外部变更」中确认后再部署'],
-      warnings: check.warnings,
-      added: [],
-      changes
-    }
-  }
 
   const staging = loadStaging()
   const plan = buildPlan(staging, gamePath, { onlyIds })
@@ -870,6 +902,7 @@ export function deploy(gamePath, stagingPath, { onlyIds = null } = {}) {
     errors: [],
     warnings: [
       ...plan.warnings,
+      ...(autoAccepted > 0 ? [`已自动接受 ${autoAccepted} 处外部变更`] : []),
       ...(hasRedmod && !redmod.ok ? [`REDmod 部署失败：${redmod.error}`] : []),
       ...replaced.map((item) => `覆盖冲突：${item.current} 顶替了 ${item.previous} 的 ${item.path}`)
     ],

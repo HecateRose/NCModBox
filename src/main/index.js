@@ -36,6 +36,7 @@ import {
   regenerateArchiveModlist,
   reclassifyStaged,
   removeStaged,
+  resolveAllExternalChanges,
   resolveExternalChange,
   runRedMod,
   setDeployOrder,
@@ -318,6 +319,11 @@ function registerIpc() {
     const paths = getPaths()
     const modIds = Array.isArray(payload && payload.modIds) ? payload.modIds : null
     return undeploy(paths.gamePath, { onlyIds: modIds })
+  })
+
+  ipcMain.handle('deploy:resolve-all', (_event, payload) => {
+    const paths = getPaths()
+    return resolveAllExternalChanges({ ...(payload || {}), gamePath: paths.gamePath })
   })
 
   ipcMain.handle('deploy:resolve-change', (_event, payload) => {
