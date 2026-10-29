@@ -85,6 +85,8 @@ export async function initModStore() {
   state.hasKey = Boolean(settings.hasKey)
   state.keyMasked = settings.masked || ''
   state.ready = true
+  // 启动时主动拉一次日志统计（onStateChanged 回调里的是状态变化后的补充刷新）
+  refreshLogsSummary().catch(() => {})
   bridge.onStateChanged((remote) => {
     applyRemote(remote)
     // 广播只带原始 state，派生字段需要重新算一遍
