@@ -604,6 +604,11 @@ export async function resolveChange(payload) {
   return result
 }
 
+/** 健康检查：检查 staging/部署/缓存/框架等常见问题 */
+export async function checkHealth() {
+  return bridge.healthCheck()
+}
+
 /** 全量重新部署：撤销当前部署后按当前列表整体重建（Vortex 式） */
 export async function redeployAll() {
   const result = await bridge.redeployAll()

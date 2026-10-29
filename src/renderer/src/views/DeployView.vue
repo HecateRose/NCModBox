@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
+  checkHealth,
   deployedCount,
   importStagedMod,
   launchGame,
@@ -30,6 +31,19 @@ import { scanConflicts } from '../store/mods'
 const busy = ref(false)
 const keyword = ref('')
 const pathsCollapsed = ref(false)
+const health = ref(null)
+const healthBusy = ref(false)
+
+async function onHealthCheck() {
+  healthBusy.value = true
+  try {
+    health.value = await checkHealth()
+  } catch (err) {
+    ElMessage({ message: (err && err.message) || '健康检查失败', type: 'error', duration: 3400 })
+  } finally {
+    healthBusy.value = false
+  }
+}
 
 const deploy = computed(() => state.deploy)
 const deployedIds = computed(() => new Set(deploy.value.deployed.map((entry) => entry.stagedModId)))
@@ -635,6 +649,7 @@ onBeforeUnmount(() => {
           placeholder="筛选：名称 / 类型 / 扩展名…"
         />
         <el-button class="btn-ghost" @click="onImport">导入文件夹</el-button>
+        <el-button class="btn-ghost" :loading="healthBusy" @click="onHealthCheck">健康检查</el-button>
         <el-button class="btn-dark" :disabled="!canDeploy" :loading="busy" @click="onDeploy">部署</el-button>
         <el-button class="btn-ghost" :loading="busy" @click="onRedeploy">重新部署</el-button>
         <el-button class="btn-ghost" :disabled="!deploy.deployed.length" :loading="busy" @click="onUndo">
@@ -645,6 +660,37 @@ onBeforeUnmount(() => {
         </el-button>
       </div>
     </header>
+
+    <section v-if="health" class="panel">
+      <div class="panel-head-row">
+        <h3 class="panel-title">
+          健康检查
+          <el-tag v-if="health.ok && !health.warns" type="success" effect="plain" size="small">全部正常</el-tag>
+          <el-tag v-if="health.errors" type="danger" effect="plain" size="small">错误 {{ health.errors }}</el-tag>
+          <el-tag v-if="health.warns" type="warning" effect="plain" size="small">警告 {{ health.warns }}</el-tag>
+        </h3>
+        <el-button class="btn-ghost" size="small" :loading="healthBusy" @click="onHealthCheck">重新检查</el-button>
+      </div>
+      <p v-if="!health.issues.length" class="panel-sub">没有发现问题。</p>
+      <div v-else class="mod-list">
+        <div v-for="(issue, index) in health.issues" :key="index" class="deploy-row">
+          <div class="deploy-main">
+            <p class="row-summary">
+              <el-tag
+                size="small"
+                :type="issue.level === 'error' ? 'danger' : issue.level === 'warn' ? 'warning' : 'info'"
+                effect="plain"
+              >
+                {{ issue.level === 'error' ? '错误' : issue.level === 'warn' ? '警告' : '提示' }}
+              </el-tag>
+              <strong>{{ issue.title }}</strong>
+              <span> {{ issue.detail }}</span>
+            </p>
+            <p v-if="issue.fix" class="row-summary">{{ issue.fix }}</p>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <section class="panel">
       <div class="panel-head-row">

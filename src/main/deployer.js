@@ -195,6 +195,10 @@ function slugify(name) {
 /** 把外部文件夹复制进 staging，返回记录 */
 export function importFolder(sourceDir, stagingBase) {
   const name = path.basename(sourceDir)
+  const existingFolder = loadStaging().mods.find((mod) => mod.name === name)
+  if (existingFolder) {
+    throw new Error(`「${name}」已经导入过。如需重新导入，请先在包体记录中移除旧记录。`)
+  }
   const id = `${slugify(name)}-${Date.now().toString(36)}`
   const base = stagingBase || stagingRoot()
   fs.mkdirSync(base, { recursive: true })
@@ -250,6 +254,10 @@ export function importArchive(zipPath, stagingBase) {
   fs.mkdirSync(base, { recursive: true })
 
   const name = path.basename(zipPath).replace(ARCHIVE_EXT, '')
+  const existingArchive = loadStaging().mods.find((mod) => mod.name === name)
+  if (existingArchive) {
+    throw new Error(`「${name}」已经导入过（同版本）。如需重新导入，请先在包体记录中移除旧记录。`)
+  }
   const id = `${slugify(name)}-${Date.now().toString(36)}`
   let dest = path.join(base, id)
   fs.mkdirSync(dest, { recursive: true })
@@ -775,6 +783,89 @@ function isSameContent(a, b) {
 }
 
 /* ------------------------------ 部署 / 撤销 ------------------------------ */
+
+/**
+ * 健康检查：在部署前主动发现常见问题（staging 失效、重复导入、部署缺失、外部变更、缓存残留、框架缺失）。
+ * 借鉴 Nexus Mods App 的 Health Check 设计。
+ */
+export function healthCheck(gamePath) {
+  const issues = []
+  const add = (level, title, detail, fix) => issues.push({ level, title, detail, fix: fix || '' })
+
+  if (!gamePath) {
+    add('error', '未设置游戏目录', '请先在部署页选择《赛博朋克 2077》的游戏目录')
+    return { ok: false, issues, total: 0 }
+  }
+  if (!fs.existsSync(gamePath)) {
+    add('error', '游戏目录不存在', gamePath)
+    return { ok: false, issues, total: 0 }
+  }
+
+  // staging 记录
+  const staging = loadStaging()
+  const seenNames = new Map()
+  staging.mods.forEach((mod) => {
+    if (seenNames.has(mod.name)) {
+      add('warn', '重复导入', `「${mod.name}」存在多条 staging 记录，建议移除多余记录`, '在包体记录页移除重复项')
+    }
+    seenNames.set(mod.name, true)
+    if (!mod.dir || !fs.existsSync(mod.dir)) {
+      add('error', 'staging 目录缺失', `「${mod.name}」的解压目录已不存在`, '在部署页移除该记录后重新导入')
+    }
+  })
+
+  // 部署一致性
+  const manifest = readManifest()
+  const missingTargets = manifest.entries.filter((entry) => {
+    const target = path.join(gamePath, entry.deployedPath.split('/').join(path.sep))
+    return !fs.existsSync(target)
+  })
+  if (missingTargets.length) {
+    add('warn', '部署文件缺失', `${missingTargets.length} 个已部署文件在游戏目录中不存在（可能被手动删除）`, '点「重新部署」重建')
+  }
+  const missingSources = manifest.entries.filter((entry) => !fs.existsSync(entry.stagingPath || ''))
+  if (missingSources.length) {
+    add('error', 'staging 源文件缺失', `${missingSources.length} 个已部署文件的 staging 源已不存在`, '撤销相关 Mod 后重新导入')
+  }
+
+  // 外部变更
+  const changes = detectExternalChanges(gamePath)
+  if (changes.length) {
+    const bad = changes.filter((item) => item.type === 'refchange' || item.type === 'valchange').length
+    if (bad) add('warn', '外部变更', `${bad} 个已部署文件被外部修改（部署时会自动接受）`, '部署页「外部变更」面板可逐条/批量处理')
+  }
+
+  // 脚本缓存残留
+  const cacheFile = path.join(gamePath, 'r6', 'cache', 'final.redscripts.modded')
+  if (fs.existsSync(cacheFile)) {
+    add('info', '脚本缓存存在', 'r6/cache 里有 modded 脚本缓存；部署/撤销时会自动清理，正常情况下无需手动处理')
+  }
+
+  // 框架完整性
+  const deployedIds = new Set(manifest.entries.map((entry) => entry.stagedModId))
+  const deployedTypes = new Map()
+  staging.mods.forEach((mod) => {
+    if (!deployedIds.has(mod.id)) return
+    ;(mod.types || []).forEach((type) => deployedTypes.set(type, mod.name))
+  })
+  const frameworkNeeded = ['red4ext_core', 'redscript_core', 'cet_core']
+  const frameworkNames = { red4ext_core: 'RED4ext', redscript_core: 'redscript', cet_core: 'CET' }
+  staging.mods
+    .filter((mod) => deployedIds.has(mod.id))
+    .forEach((mod) => {
+      const needs = (mod.types || []).filter((type) => type === 'red4ext' || type === 'cet' || type === 'redscript')
+      needs.forEach((type) => {
+        const core = type === 'red4ext' ? 'red4ext_core' : type === 'cet' ? 'cet_core' : 'redscript_core'
+        if (!deployedTypes.has(core)) {
+          add('warn', '框架缺失', `「${mod.name}」依赖 ${frameworkNames[core]}，但当前没有部署它`, '导入并部署对应框架')
+        }
+      })
+    })
+
+  const errors = issues.filter((item) => item.level === 'error').length
+  const warns = issues.filter((item) => item.level === 'warn').length
+  return { ok: errors === 0, issues, errors, warns, stagingCount: staging.mods.length, deployedCount: manifest.entries.length }
+}
 
 export function preflight(gamePath, stagingPath) {
   const errors = []
