@@ -39,6 +39,7 @@ const api = {
   setDeployOrder: (payload) => ipcRenderer.invoke('deploy:order', payload),
 
   launchGame: () => ipcRenderer.invoke('game:launch'),
+  gameStatus: () => ipcRenderer.invoke('game:status'),
   stopGame: () => ipcRenderer.invoke('game:stop'),
   getGameStatus: () => ipcRenderer.invoke('game:status'),
 

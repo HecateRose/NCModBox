@@ -553,6 +553,16 @@ export async function scanConflicts() {
 
 /* ------------------------------ 部署 ------------------------------ */
 
+/** 轻量刷新游戏运行状态（轮询用，不拉全量部署状态） */
+export async function refreshGameStatus() {
+  try {
+    const status = await bridge.gameStatus()
+    state.deploy.running = Boolean(status && status.running)
+  } catch {
+    /* 忽略偶发失败 */
+  }
+}
+
 export async function refreshDeploy() {
   state.deploy.loading = true
   try {

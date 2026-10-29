@@ -10,6 +10,7 @@ import {
   pickDirectory,
   redmodOrderList,
   refreshDeploy,
+  refreshGameStatus,
   reclassifyStaged,
   removeStagedMod,
   rerunRedMod,
@@ -623,7 +624,7 @@ onMounted(() => {
   refreshDeploy()
   // 游戏进程可能自行退出/崩溃，定时刷新运行状态（停止/启动按钮随之切换）
   statusTimer = setInterval(() => {
-    if (!busy.value) refreshDeploy().catch(() => {})
+    if (!busy.value) refreshGameStatus()
   }, 5000)
 })
 

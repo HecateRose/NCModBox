@@ -100,6 +100,7 @@ const fallback = {
   runRedMod: async () => ({ ok: false, error: '浏览器预览模式下不可用' }),
   setDeployOrder: async () => ({ legacyOrder: [], redmodOrder: [] }),
   launchGame: async () => ({ ok: false, error: '浏览器预览模式下不可用' }),
+  gameStatus: async () => ({ running: false }),
   stopGame: async () => ({ ok: false, error: '浏览器预览模式下不可用' }),
   getGameStatus: async () => ({ running: false }),
 

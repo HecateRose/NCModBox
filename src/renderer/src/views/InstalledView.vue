@@ -6,7 +6,6 @@ import {
   checkModUpdates,
   extractDownload,
   hideDownloadNotice,
-  refreshDeploy,
   refreshDownloads,
   removeDownloadRecord,
   runDeploy,
@@ -115,7 +114,6 @@ function recordCover(record) {
 function recordTags(record) {
   return (record.tags || []).slice(0, 4)
 }
-const deployedIds = computed(() => new Set(state.deploy.deployed.map((entry) => entry.stagedModId)))
 const keptCount = computed(() => records.value.filter((record) => record.archiveExists).length)
 const missingCount = computed(() => records.value.length - keptCount.value)
 
@@ -222,7 +220,8 @@ async function onExtract(record) {
 }
 
 onMounted(async () => {
-  await Promise.all([refreshDownloads(), refreshDeploy()])
+  // 包体记录的部署状态由后端 record.deployed 提供，不需要再拉一遍全量部署状态
+  await refreshDownloads()
 })
 </script>
 
