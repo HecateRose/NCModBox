@@ -149,8 +149,17 @@ export function runCapture({ mainWindow, openModWindow, resolveModId }) {
 
     await mainWindow.webContents.executeJavaScript("location.hash = '#/deploy'")
     await waitPath(mainWindow, '#/deploy')
-    await wait(1200)
+    await waitFor(mainWindow, '.deploy-tabs', 15000)
+    await waitFor(mainWindow, '.mod-list .deploy-row', 15000)
+    await wait(1500)
     await shot(mainWindow, '03b-deploy.png', VIEWPORT)
+
+    // 排序列表 tab（冲突扫描 + 加载顺序）
+    await mainWindow.webContents.executeJavaScript(
+      "document.querySelectorAll('.deploy-tab')[2]?.click()"
+    )
+    await wait(1200)
+    await shot(mainWindow, '03d-deploy-order.png', VIEWPORT)
     await mainWindow.webContents.executeJavaScript("location.hash = '#/history'")
     await waitPath(mainWindow, '#/history')
     await wait(1200)
