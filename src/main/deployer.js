@@ -8,6 +8,7 @@
  */
 import fs from 'fs'
 import path from 'path'
+import crypto from 'crypto'
 import { execFileSync, spawn } from 'child_process'
 import { app } from 'electron'
 
@@ -667,6 +668,20 @@ export function resolveExternalChange({ gamePath, path: deployedPath, action } =
   return { ok: false, error: '未知操作（只支持 accept / restore）' }
 }
 
+/** 比较两个文件内容是否一致（大小 + sha1），用于接管已存在但不受管理的文件 */
+function isSameContent(a, b) {
+  try {
+    const sa = fs.statSync(a)
+    const sb = fs.statSync(b)
+    if (sa.size !== sb.size) return false
+    const ha = crypto.createHash('sha1').update(fs.readFileSync(a)).digest('hex')
+    const hb = crypto.createHash('sha1').update(fs.readFileSync(b)).digest('hex')
+    return ha === hb
+  } catch {
+    return false
+  }
+}
+
 /* ------------------------------ 部署 / 撤销 ------------------------------ */
 
 export function preflight(gamePath, stagingPath) {
@@ -738,7 +753,15 @@ export function deploy(gamePath, stagingPath, { onlyIds = null } = {}) {
       const target = path.join(gamePath, entry.deployedPath.split('/').join(path.sep))
       fs.mkdirSync(path.dirname(target), { recursive: true })
       if (fs.existsSync(target)) {
-        throw new Error(`目标已存在且不受管理：${entry.deployedPath}`)
+        // 目标已存在但 manifest 里没有：如果内容与 staging 源完全一致，
+        // 说明是同一版本文件被外部放置或旧记录丢失，直接接管（移除后重建硬链接）；
+        // 内容不一致才阻止，避免覆盖用户手动改过的文件。
+        if (!isSameContent(entry.stagingPath, target)) {
+          throw new Error(
+            `目标已存在且不受管理：${entry.deployedPath}（与 staging 中的文件内容不一致，请先手动确认或删除该文件）`
+          )
+        }
+        fs.unlinkSync(target)
       }
       if (entry.linkType === 'copy') {
         fs.copyFileSync(entry.stagingPath, target)
