@@ -109,6 +109,28 @@ const groupedMods = computed(() => {
   return groups.filter((group) => group.mods.length)
 })
 
+const activeTab = ref('direct')
+
+/** 当前 tab 下要显示的分组（需要排序 tab 只看 sortable 组） */
+const visibleGroups = computed(() => {
+  const groups = groupedMods.value
+  if (activeTab.value === 'direct') return groups.filter((group) => group.key !== 'sortable')
+  if (activeTab.value === 'sorted') return groups.filter((group) => group.key === 'sortable')
+  return []
+})
+
+const deployTabs = computed(() => {
+  const groups = groupedMods.value
+  const direct = groups.filter((g) => g.key !== 'sortable').reduce((sum, g) => sum + g.mods.length, 0)
+  const sorted = groups.filter((g) => g.key === 'sortable').reduce((sum, g) => sum + g.mods.length, 0)
+  const order = (deploy.value.legacyOrder || []).length + (deploy.value.redmodOrder || []).length
+  return [
+    { key: 'direct', label: '无需排序', count: direct },
+    { key: 'sorted', label: '需要排序', count: sorted },
+    { key: 'order', label: '排序列表', count: order }
+  ]
+})
+
 const subtitle = computed(() => {
   if (!deploy.value.gamePath) return '先设置游戏目录，再把 Mod 文件夹导入 staging'
   const base = `${deploy.value.mods.length} 个 staging Mod · ${enabledCount.value} 个已启用 · ${deployedCount.value} 个文件已部署`
@@ -662,6 +684,20 @@ onBeforeUnmount(() => {
       </div>
     </header>
 
+    <div class="deploy-tabs">
+      <button
+        v-for="tab in deployTabs"
+        :key="tab.key"
+        class="deploy-tab"
+        :class="{ active: activeTab === tab.key }"
+        @click="activeTab = tab.key"
+      >
+        {{ tab.label }}
+        <span v-if="tab.count" class="deploy-tab-count">{{ tab.count }}</span>
+      </button>
+    </div>
+
+    <template v-if="activeTab === 'direct'">
     <section v-if="health" class="panel">
       <div class="panel-head-row">
         <h3 class="panel-title">
@@ -879,7 +915,9 @@ onBeforeUnmount(() => {
       title="REDmod 已部署"
       description="redMod.exe deploy 执行成功，启动游戏前会校验该状态。"
     />
+    </template>
 
+    <template v-if="activeTab === 'order'">
     <section class="panel">
       <h3 class="panel-title">加载顺序</h3>
       <p class="panel-sub">
@@ -1016,7 +1054,9 @@ onBeforeUnmount(() => {
         </template>
       </template>
     </section>
+    </template>
 
+    <div v-show="activeTab !== 'order'">
         <p v-if="deploy.mods.length" class="panel-sub list-hint">
       列表按加载方式分组。开关表示「全量部署时是否包含这个 Mod」；<b>已部署的 Mod 不显示开关</b>，
       要取消请点「撤销此 Mod」。（开关不会卸载已写入游戏目录的文件）
@@ -1035,7 +1075,7 @@ onBeforeUnmount(() => {
     </el-empty>
 
     <div v-else class="mod-groups">
-      <section v-for="group in groupedMods" :key="group.key" class="mod-group">
+      <section v-for="group in visibleGroups" :key="group.key" class="mod-group">
         <header class="mod-group-head">
           <h4>{{ group.label }}</h4>
           <span class="mod-group-count">{{ group.mods.length }}</span>
@@ -1103,6 +1143,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
       </section>
+    </div>
     </div>
   </section>
 </template>

@@ -2777,3 +2777,41 @@ a {
 .conflict-note {
   color: #8a6d00;
 }
+
+/* 部署页分类 tab */
+.deploy-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 16px 0 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.deploy-tab {
+  position: relative;
+  border: none;
+  background: transparent;
+  padding: 10px 20px;
+  font-size: 14px;
+  color: var(--ink-3);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s ease;
+}
+
+.deploy-tab:hover {
+  color: var(--ink);
+}
+
+.deploy-tab.active {
+  color: var(--ink);
+  font-weight: 700;
+  border-bottom-color: var(--accent);
+}
+
+.deploy-tab-count {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
