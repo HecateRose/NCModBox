@@ -447,7 +447,10 @@ function targetFor(mod, file) {
     return path.join(CET_DIR, relPath.slice(idx + 5))
   }
 
-  // 常规类型
+  // 常规类型：已经自带游戏内相对路径的，保留目录结构（插件/mods 里的子目录结构不能摊平）
+  if (rel.startsWith('archive/pc/mod/')) return relPath
+  if (rel.startsWith('r6/scripts/')) return relPath
+  if (rel.startsWith('r6/tweaks/')) return relPath
   if (rel.endsWith('.archive') || rel.endsWith('.xl')) return path.join(LEGACY_DIR, base)
   if (rel.endsWith('.reds')) return path.join(SCRIPT_DIR, base)
   if (rel.endsWith('.tweak')) return path.join(TWEAK_DIR, base)
