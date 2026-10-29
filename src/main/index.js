@@ -36,6 +36,7 @@ import {
   regenerateArchiveModlist,
   reclassifyStaged,
   removeStaged,
+  redeployAll,
   resolveAllExternalChanges,
   resolveExternalChange,
   runRedMod,
@@ -319,6 +320,11 @@ function registerIpc() {
     const paths = getPaths()
     const modIds = Array.isArray(payload && payload.modIds) ? payload.modIds : null
     return undeploy(paths.gamePath, { onlyIds: modIds })
+  })
+
+  ipcMain.handle('deploy:redeploy-all', () => {
+    const paths = getPaths()
+    return redeployAll(paths.gamePath, paths.resolvedStaging)
   })
 
   ipcMain.handle('deploy:resolve-all', (_event, payload) => {

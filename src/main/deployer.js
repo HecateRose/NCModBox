@@ -735,6 +735,31 @@ function backupUnmanagedFile(gamePath, deployedPath) {
   }
 }
 
+/**
+ * 清理脚本编译缓存：mod 增删后如果旧缓存还在，游戏会直接加载带 mod 的脚本，
+ * 表现为卡死/黑屏（撤销后没有 redscript 本体时尤其明显）。删掉让游戏重新生成。
+ */
+export function clearScriptCaches(gamePath) {
+  if (!gamePath) return 0
+  const targets = [
+    path.join(gamePath, 'r6', 'cache', 'final.redscripts.modded'),
+    path.join(gamePath, 'r6', 'cache', 'final.redscripts.ts'),
+    path.join(gamePath, 'r6', 'cache', 'modded')
+  ]
+  let cleared = 0
+  targets.forEach((target) => {
+    try {
+      if (fs.existsSync(target)) {
+        fs.rmSync(target, { recursive: true, force: true })
+        cleared += 1
+      }
+    } catch (err) {
+      console.error('[modbox] 清理脚本缓存失败', target, err)
+    }
+  })
+  return cleared
+}
+
 /** 比较两个文件内容是否一致（大小 + sha1），用于接管已存在但不受管理的文件 */
 function isSameContent(a, b) {
   try {
@@ -833,6 +858,7 @@ export function deploy(gamePath, stagingPath, { onlyIds = null } = {}) {
         // 不应因为旧文件存在就阻止部署。备份在 userData/deploy-backup/<时间戳>/。
         if (!isSameContent(entry.stagingPath, target)) {
           const backupPath = backupUnmanagedFile(gamePath, entry.deployedPath)
+          if (backupPath) entry.backupPath = backupPath
           replaced.push({
             path: entry.deployedPath,
             previous: backupPath ? '未管理旧文件（已备份）' : '未管理旧文件（备份失败）',
@@ -896,6 +922,7 @@ export function deploy(gamePath, stagingPath, { onlyIds = null } = {}) {
   })
 
   regenerateArchiveModlist(gamePath)
+  clearScriptCaches(gamePath)
 
   return {
     ok: true,
@@ -983,8 +1010,15 @@ export function undeploy(gamePath, { onlyIds = null } = {}) {
       return
     }
     try {
-      fs.unlinkSync(target)
-      removed.push(entry.deployedPath)
+      if (entry.backupPath && fs.existsSync(entry.backupPath)) {
+        // 部署时覆盖过游戏原版文件：先断链接（不影响 staging），再恢复原版副本
+        fs.unlinkSync(target)
+        fs.copyFileSync(entry.backupPath, target)
+        removed.push(entry.deployedPath + '（已恢复原版）')
+      } else {
+        fs.unlinkSync(target)
+        removed.push(entry.deployedPath)
+      }
     } catch {
       skipped.push({ path: entry.deployedPath, reason: '删除失败' })
     }
@@ -1038,7 +1072,21 @@ export function undeploy(gamePath, { onlyIds = null } = {}) {
     redmodOrder
   })
   regenerateArchiveModlist(gamePath)
+  clearScriptCaches(gamePath)
   return { ok: true, removed, skipped, redmod }
+}
+
+/**
+ * 全量重新部署（Vortex 式）：撤销当前部署 → 清脚本缓存 → 按当前启用列表整体重建。
+ * 状态永远和 manifest 一致，避免增量部署累积的错位。
+ */
+export function redeployAll(gamePath, stagingPath) {
+  if (isGameRunning()) {
+    return { ok: false, errors: ['游戏正在运行，禁止重新部署'], removed: [], added: [], skipped: [] }
+  }
+  const undo = undeploy(gamePath)
+  const result = deploy(gamePath, stagingPath)
+  return { ...result, removed: undo.removed, skipped: undo.skipped, undo }
 }
 
 /* ------------------------------ 排序 ------------------------------ */

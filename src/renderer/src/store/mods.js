@@ -604,6 +604,13 @@ export async function resolveChange(payload) {
   return result
 }
 
+/** 全量重新部署：撤销当前部署后按当前列表整体重建（Vortex 式） */
+export async function redeployAll() {
+  const result = await bridge.redeployAll()
+  await refreshDeploy()
+  return result
+}
+
 /** 批量处理全部外部变更：accept=全部接受，restore=全部恢复 */
 export async function resolveAllChanges(action = 'accept') {
   const result = await bridge.resolveAllChanges({ action })

@@ -12,6 +12,7 @@ import {
   reclassifyStaged,
   removeStagedMod,
   rerunRedMod,
+  redeployAll,
   resolveAllChanges,
   resolveChange,
   runDeploy,
@@ -206,6 +207,40 @@ async function onUndo() {
     result.skipped.forEach((item) =>
       ElMessage({ message: `${item.path}：${item.reason}`, type: 'warning', duration: 3200 })
     )
+  } finally {
+    busy.value = false
+  }
+}
+
+async function onRedeploy() {
+  try {
+    await ElMessageBox.confirm(
+      '重新部署会先撤销当前部署、清理脚本缓存，再按当前启用列表整体重建。游戏需关闭。继续？',
+      '重新部署',
+      { confirmButtonText: '重新部署', cancelButtonText: '取消', type: 'warning' }
+    )
+  } catch {
+    return
+  }
+  busy.value = true
+  try {
+    const result = await redeployAll()
+    if (result.ok) {
+      ElMessage({
+        message: `重新部署完成：移除 ${(result.removed || []).length} 个，重建 ${(result.added || []).length} 个`,
+        type: 'success',
+        duration: 3000
+      })
+      ;(result.warnings || []).forEach((text) => ElMessage({ message: text, type: 'warning', duration: 3600 }))
+      ;(result.skipped || []).forEach((item) =>
+        ElMessage({ message: `${item.path}：${item.reason}`, type: 'warning', duration: 3600 })
+      )
+    } else {
+      ElMessageBox.alert((result.errors || []).join('\n'), '重新部署失败', {
+        confirmButtonText: '知道了',
+        customClass: 'deploy-alert'
+      })
+    }
   } finally {
     busy.value = false
   }
@@ -601,6 +636,7 @@ onBeforeUnmount(() => {
         />
         <el-button class="btn-ghost" @click="onImport">导入文件夹</el-button>
         <el-button class="btn-dark" :disabled="!canDeploy" :loading="busy" @click="onDeploy">部署</el-button>
+        <el-button class="btn-ghost" :loading="busy" @click="onRedeploy">重新部署</el-button>
         <el-button class="btn-ghost" :disabled="!deploy.deployed.length" :loading="busy" @click="onUndo">
           撤销部署
         </el-button>
