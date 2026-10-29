@@ -614,6 +614,13 @@ export async function resolveChange(payload) {
   return result
 }
 
+/** 自动排序 Legacy archive：按 Mod 分组重排加载顺序 */
+export async function autoSortDeploy() {
+  const result = await bridge.autoSortDeploy()
+  await refreshDeploy()
+  return result
+}
+
 /** 健康检查：检查 staging/部署/缓存/框架等常见问题 */
 export async function checkHealth() {
   return bridge.healthCheck()

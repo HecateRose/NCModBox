@@ -1238,6 +1238,41 @@ export function setDeployOrder({ kind, order, gamePath }) {
   }
 }
 
+/**
+ * 自动排序 Legacy archive：按 Mod 分组、组内按文件名排序，Mod 之间按名称字母序。
+ * 目的：把同一 Mod 的多个 archive 聚在一起，减少交叉覆盖风险；
+ * 冲突扫描后给手动调整一个稳定起点。
+ */
+export function autoSortLegacyOrder(gamePath) {
+  const manifest = readManifest()
+  const entries = manifest.entries.filter((entry) =>
+    /^archive\/pc\/mod\/.+\.archive$/i.test(entry.deployedPath)
+  )
+  if (!entries.length) return { ok: true, order: [], count: 0 }
+
+  const byMod = new Map()
+  entries.forEach((entry) => {
+    const name = path.basename(entry.deployedPath)
+    const key = entry.modName || 'unknown'
+    if (!byMod.has(key)) byMod.set(key, [])
+    const list = byMod.get(key)
+    if (!list.includes(name)) list.push(name)
+  })
+
+  const order = []
+  ;[...byMod.keys()].sort((a, b) => a.localeCompare(b, 'zh-CN')).forEach((modName) => {
+    byMod
+      .get(modName)
+      .sort((a, b) => a.localeCompare(b))
+      .forEach((name) => order.push(name))
+  })
+
+  manifest.legacyOrder = order
+  writeManifest(manifest)
+  regenerateArchiveModlist(gamePath)
+  return { ok: true, order, count: order.length }
+}
+
 /* ------------------------------ 启动游戏 ------------------------------ */
 
 /** 强制结束游戏进程（游戏卡在错误弹窗 / 崩溃残留时用） */

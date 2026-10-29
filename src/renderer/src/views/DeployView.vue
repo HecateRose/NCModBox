@@ -14,7 +14,7 @@ import {
   reclassifyStaged,
   removeStagedMod,
   rerunRedMod,
-  redeployAll,
+  autoSortDeploy,
   resolveAllChanges,
   resolveChange,
   runDeploy,
@@ -249,34 +249,27 @@ async function onUndo() {
   }
 }
 
-async function onRedeploy() {
+async function onAutoSort() {
   try {
     await ElMessageBox.confirm(
-      '重新部署会先撤销当前部署、清理脚本缓存，再按当前启用列表整体重建。游戏需关闭。继续？',
-      '重新部署',
-      { confirmButtonText: '重新部署', cancelButtonText: '取消', type: 'warning' }
+      '将按 Mod 分组重排 Legacy archive 的加载顺序（同一 Mod 的 archive 相邻、Mod 之间按名称排序），会覆盖当前手动顺序。继续？',
+      '自动排序',
+      { confirmButtonText: '自动排序', cancelButtonText: '取消', type: 'warning' }
     )
   } catch {
     return
   }
   busy.value = true
   try {
-    const result = await redeployAll()
-    if (result.ok) {
+    const result = await autoSortDeploy()
+    if (result && result.ok) {
       ElMessage({
-        message: `重新部署完成：移除 ${(result.removed || []).length} 个，重建 ${(result.added || []).length} 个`,
+        message: result.count ? `已自动排序 ${result.count} 个 archive（按 Mod 分组）` : '当前没有已部署的 Legacy archive',
         type: 'success',
-        duration: 3000
+        duration: 2600
       })
-      ;(result.warnings || []).forEach((text) => ElMessage({ message: text, type: 'warning', duration: 3600 }))
-      ;(result.skipped || []).forEach((item) =>
-        ElMessage({ message: `${item.path}：${item.reason}`, type: 'warning', duration: 3600 })
-      )
     } else {
-      ElMessageBox.alert((result.errors || []).join('\n'), '重新部署失败', {
-        confirmButtonText: '知道了',
-        customClass: 'deploy-alert'
-      })
+      ElMessage({ message: (result && result.error) || '自动排序失败', type: 'error', duration: 3400 })
     }
   } finally {
     busy.value = false
@@ -674,7 +667,6 @@ onBeforeUnmount(() => {
         <el-button class="btn-ghost" @click="onImport">导入文件夹</el-button>
         <el-button class="btn-ghost" :loading="healthBusy" @click="onHealthCheck">健康检查</el-button>
         <el-button class="btn-dark" :disabled="!canDeploy" :loading="busy" @click="onDeploy">部署</el-button>
-        <el-button class="btn-ghost" :loading="busy" @click="onRedeploy">重新部署</el-button>
         <el-button class="btn-ghost" :disabled="!deploy.deployed.length" :loading="busy" @click="onUndo">
           撤销部署
         </el-button>
@@ -919,6 +911,67 @@ onBeforeUnmount(() => {
 
     <template v-if="activeTab === 'order'">
     <section class="panel">
+      <div class="panel-head-row">
+        <h3 class="panel-title">冲突扫描</h3>
+        <el-button class="btn-ghost" size="small" :loading="busy" @click="onAutoSort">自动排序</el-button>
+        <el-button class="btn-ghost" size="small" :loading="scanBusy" @click="onScanConflicts">
+          {{ conflicts ? '重新扫描' : '开始扫描' }}
+        </el-button>
+      </div>
+      <p class="panel-sub">
+        扫描 <code>archive/pc/mod</code> 的文件级冲突。优先调用 red4-conflicts.exe（放在游戏根目录或
+        tools/red4-conflicts.exe）；未安装工具时退化为归档清单与 modlist 顺序的静态分析，仅供人工核对。
+      </p>
+
+      <template v-if="conflicts">
+        <el-alert
+          v-if="conflicts.available && conflicts.error"
+          class="flat-alert"
+          type="error"
+          show-icon
+          :closable="false"
+          title="冲突扫描失败"
+          :description="conflicts.error"
+        />
+        <template v-else-if="conflicts.available">
+          <p class="panel-sub">已调用：{{ conflicts.tool }}</p>
+          <div v-if="conflicts.parsed && conflicts.parsed.entries.length" class="mod-list">
+            <div v-for="(entry, index) in conflicts.parsed.entries" :key="index" class="deploy-row">
+              <div class="deploy-main">
+                <p class="row-summary">{{ entry.text }}</p>
+              </div>
+            </div>
+          </div>
+          <pre v-else class="conflict-raw">{{ conflicts.parsed.raw || '工具没有输出冲突信息' }}</pre>
+        </template>
+        <p v-else class="panel-sub">{{ conflicts.hint }}</p>
+
+        <template v-if="conflicts.fallback">
+          <p class="panel-sub">
+            archive 清单（{{ conflicts.fallback.archives.length }}）· modlist 记录
+            {{ conflicts.fallback.order.length }} 条
+          </p>
+          <div v-if="conflicts.fallback.archives.length" class="mod-list">
+            <div
+              v-for="(item, index) in conflicts.fallback.archives"
+              :key="item.name"
+              class="deploy-row"
+            >
+              <div class="deploy-main">
+                <p class="row-summary">
+                  {{ index + 1 }}. {{ item.name }} · {{ (item.size / 1024 / 1024).toFixed(1) }} MB
+                </p>
+              </div>
+            </div>
+          </div>
+          <p v-for="note in conflicts.fallback.notes" :key="note" class="panel-sub conflict-note">
+            {{ note }}
+          </p>
+        </template>
+      </template>
+    </section>
+
+    <section class="panel">
       <h3 class="panel-title">加载顺序</h3>
       <p class="panel-sub">
         拖拽行或点 ↑↓ 调整，上方先加载，文件级冲突时<b>上方获胜</b>；REDmod 永远在 Legacy archive 之后加载（不可调整）。
@@ -993,66 +1046,6 @@ onBeforeUnmount(() => {
           </div>
         </div>
       </div>
-    </section>
-
-    <section class="panel">
-      <div class="panel-head-row">
-        <h3 class="panel-title">冲突扫描</h3>
-        <el-button class="btn-ghost" size="small" :loading="scanBusy" @click="onScanConflicts">
-          {{ conflicts ? '重新扫描' : '开始扫描' }}
-        </el-button>
-      </div>
-      <p class="panel-sub">
-        扫描 <code>archive/pc/mod</code> 的文件级冲突。优先调用 red4-conflicts.exe（放在游戏根目录或
-        tools/red4-conflicts.exe）；未安装工具时退化为归档清单与 modlist 顺序的静态分析，仅供人工核对。
-      </p>
-
-      <template v-if="conflicts">
-        <el-alert
-          v-if="conflicts.available && conflicts.error"
-          class="flat-alert"
-          type="error"
-          show-icon
-          :closable="false"
-          title="冲突扫描失败"
-          :description="conflicts.error"
-        />
-        <template v-else-if="conflicts.available">
-          <p class="panel-sub">已调用：{{ conflicts.tool }}</p>
-          <div v-if="conflicts.parsed && conflicts.parsed.entries.length" class="mod-list">
-            <div v-for="(entry, index) in conflicts.parsed.entries" :key="index" class="deploy-row">
-              <div class="deploy-main">
-                <p class="row-summary">{{ entry.text }}</p>
-              </div>
-            </div>
-          </div>
-          <pre v-else class="conflict-raw">{{ conflicts.parsed.raw || '工具没有输出冲突信息' }}</pre>
-        </template>
-        <p v-else class="panel-sub">{{ conflicts.hint }}</p>
-
-        <template v-if="conflicts.fallback">
-          <p class="panel-sub">
-            archive 清单（{{ conflicts.fallback.archives.length }}）· modlist 记录
-            {{ conflicts.fallback.order.length }} 条
-          </p>
-          <div v-if="conflicts.fallback.archives.length" class="mod-list">
-            <div
-              v-for="(item, index) in conflicts.fallback.archives"
-              :key="item.name"
-              class="deploy-row"
-            >
-              <div class="deploy-main">
-                <p class="row-summary">
-                  {{ index + 1 }}. {{ item.name }} · {{ (item.size / 1024 / 1024).toFixed(1) }} MB
-                </p>
-              </div>
-            </div>
-          </div>
-          <p v-for="note in conflicts.fallback.notes" :key="note" class="panel-sub conflict-note">
-            {{ note }}
-          </p>
-        </template>
-      </template>
     </section>
     </template>
 

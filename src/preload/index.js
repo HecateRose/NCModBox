@@ -33,6 +33,7 @@ const api = {
   resolveAllChanges: (payload) => ipcRenderer.invoke('deploy:resolve-all', payload),
   redeployAll: () => ipcRenderer.invoke('deploy:redeploy-all'),
   healthCheck: () => ipcRenderer.invoke('deploy:health'),
+  autoSortDeploy: () => ipcRenderer.invoke('deploy:auto-sort'),
   getDeployChanges: () => ipcRenderer.invoke('deploy:changes'),
   regenerateModlist: () => ipcRenderer.invoke('deploy:modlist'),
   runRedMod: () => ipcRenderer.invoke('deploy:redmod'),

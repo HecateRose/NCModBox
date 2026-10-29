@@ -95,6 +95,7 @@ const fallback = {
   resolveAllChanges: async () => ({ ok: false, error: '浏览器预览模式下不可用' }),
   redeployAll: async () => ({ ok: false, error: '浏览器预览模式下不可用' }),
   healthCheck: async () => ({ ok: false, issues: [], errors: 0, warns: 0 }),
+  autoSortDeploy: async () => ({ ok: false, error: '浏览器预览模式下不可用' }),
   getDeployChanges: async () => [],
   regenerateModlist: async () => [],
   runRedMod: async () => ({ ok: false, error: '浏览器预览模式下不可用' }),

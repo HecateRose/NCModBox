@@ -19,7 +19,7 @@ import {
   uninstallMod
 } from './store'
 import { getKeyStatus, getPaths, setApiKey, setPaths } from './settings'
-import { deploy, stopGame, detectExternalChanges, importFolder, importArchive, getGameVersion, isGameRunning, launchGame, parseGameVersionFromName, loadStaging, parseModIdFromArchiveName, preflight, readManifest, regenerateArchiveModlist, reclassifyStaged, removeStaged, redeployAll, resolveAllExternalChanges, resolveExternalChange, runRedMod, setDeployOrder, stagingRoot, toggleStaged, undeploy, migrateStagingPaths, healthCheck } from './deployer'
+import { deploy, stopGame, detectExternalChanges, importFolder, importArchive, getGameVersion, isGameRunning, launchGame, parseGameVersionFromName, loadStaging, parseModIdFromArchiveName, preflight, readManifest, regenerateArchiveModlist, reclassifyStaged, removeStaged, redeployAll, resolveAllExternalChanges, resolveExternalChange, runRedMod, setDeployOrder, stagingRoot, toggleStaged, undeploy, migrateStagingPaths, healthCheck, autoSortLegacyOrder } from './deployer'
 import { getModImages } from './nexus'
 import { checkDependencies, checkModRequirements } from './dependencies'
 import { collectLogs } from './logs'
@@ -297,6 +297,11 @@ function registerIpc() {
     const paths = getPaths()
     const modIds = Array.isArray(payload && payload.modIds) ? payload.modIds : null
     return undeploy(paths.gamePath, { onlyIds: modIds })
+  })
+
+  ipcMain.handle('deploy:auto-sort', () => {
+    const paths = getPaths()
+    return autoSortLegacyOrder(paths.gamePath)
   })
 
   ipcMain.handle('deploy:health', () => {
