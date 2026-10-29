@@ -24,7 +24,7 @@ import { getModImages } from './nexus'
 import { checkDependencies, checkModRequirements } from './dependencies'
 import { collectLogs } from './logs'
 import { scanConflicts } from './conflicts'
-import { listDownloadRecords, listPackageFiles } from './library'
+import { listDownloadRecords, listPackageFiles, attachStagedToDownload } from './library'
 import { runCapture } from './screenshot'
 import { translateTexts } from './translate'
 import { clearLocalModel, ensureLocalModel, getLocalModelStatus } from './localTranslate'
@@ -267,6 +267,7 @@ function registerIpc() {
     if (result.canceled || !result.filePaths[0]) return { ok: false, error: '已取消' }
     try {
       const record = importFolder(result.filePaths[0], resolveStaging().resolvedStaging)
+      attachStagedToDownload(record)
       return { ok: true, record }
     } catch (err) {
       return { ok: false, error: err.message }

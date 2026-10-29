@@ -11,7 +11,56 @@ import path from 'path'
 import { packagesDir } from './downloader'
 import { getGameVersion, loadStaging, parseGameVersionFromName, readManifest } from './deployer'
 import { getPaths } from './settings'
-import { loadState } from './store'
+import { loadState, saveState } from './store'
+
+/** 从 staging 记录名解析 modId（形如 "TweakXL 4197 1.12.0 2026-..." 的第二段数字） */
+function modIdFromStagingName(name) {
+  const match = String(name || '').match(/^(.+?)\s+(\d{2,6})\s+\S+/)
+  return match ? Number(match[2]) : 0
+}
+
+/** staging 记录名是否包含指定 modId（带空格边界，避免部分匹配） */
+function stagedMatchesModId(staged, modId) {
+  if (!staged || !modId) return false
+  return String(staged.name || '').includes(' ' + modId + ' ')
+}
+
+/**
+ * 推断下载记录应绑定的 staging 记录。
+ * 优先用已保存的绑定，但必须通过 modId 校验（历史数据里出现过 TweakXL 被绑到 redscript 记录上的错绑）；
+ * 校验失败时按 modId 重新匹配，匹配不到再按名称前缀兜底。
+ */
+function inferStagedRecord(record, stagedById, stagingMods) {
+  const modId = Number(record.modId) || 0
+  const current = record.stagedId ? stagedById.get(record.stagedId) : null
+  if (current && stagedMatchesModId(current, modId)) return current
+
+  const byModId = stagingMods.find((mod) => modIdFromStagingName(mod.name) === modId)
+  if (byModId) return byModId
+
+  const recordName = String(record.name || '').toLowerCase().trim()
+  if (recordName) {
+    const byName = stagingMods.filter((mod) => String(mod.name || '').toLowerCase().startsWith(recordName + ' '))
+    if (byName.length === 1) return byName[0]
+  }
+  return null
+}
+
+/**
+ * 导入/解压后把 staging 记录回绑到对应的下载记录（按 modId 匹配）。
+ * 导入文件夹时没有现成的 recordId，靠这里补上联动，避免包体记录显示未部署。
+ */
+export function attachStagedToDownload(staged) {
+  if (!staged || !staged.id) return false
+  const modId = modIdFromStagingName(staged.name)
+  if (!modId) return false
+  const state = loadState()
+  const record = (state.downloads || []).find((item) => Number(item.modId) === modId)
+  if (!record || record.stagedId === staged.id) return false
+  record.stagedId = staged.id
+  saveState(state)
+  return true
+}
 
 export function formatSize(bytes) {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 MB'
@@ -36,13 +85,14 @@ export function listPackageFiles() {
 
   const state = loadState()
   const byPath = new Map(state.downloads.map((record) => [record.archivePath, record]))
-  const stagedById = new Map(loadStaging().mods.map((mod) => [mod.id, mod]))
+  const stagingMods = loadStaging().mods
+  const stagedById = new Map(stagingMods.map((mod) => [mod.id, mod]))
 
   return {
     dir,
     files: files.map((file) => {
       const record = byPath.get(file.path)
-      const staged = record && record.stagedId ? stagedById.get(record.stagedId) : null
+      const staged = record ? inferStagedRecord(record, stagedById, stagingMods) : null
       return {
         ...file,
         mod: record ? record.name : '',
@@ -60,11 +110,12 @@ export function listDownloadRecords() {
   const state = loadState()
   const currentGameVersion = getGameVersion(getPaths().gamePath)
   const deployedIds = new Set(readManifest().entries.map((entry) => entry.stagedModId))
-  const stagedById = new Map(loadStaging().mods.map((mod) => [mod.id, mod]))
+  const stagingMods = loadStaging().mods
+  const stagedById = new Map(stagingMods.map((mod) => [mod.id, mod]))
 
   return {
     records: state.downloads.map((record) => {
-      const staged = record.stagedId ? stagedById.get(record.stagedId) : null
+      const staged = inferStagedRecord(record, stagedById, stagingMods)
       // 旧记录没存展示快照：用 known 里的模组资料补齐
       const known = state.known[record.modId] || {}
       // 下载文件名里标注的适配游戏版本（如 "game version 2.31"）
