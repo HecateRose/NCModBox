@@ -9,7 +9,13 @@
 import fs from 'fs'
 import path from 'path'
 import { packagesDir } from './downloader'
-import { getGameVersion, loadStaging, parseGameVersionFromName, readManifest } from './deployer'
+import {
+  getGameVersion,
+  loadStaging,
+  parseGameVersionFromName,
+  parseModIdFromArchiveName,
+  readManifest
+} from './deployer'
 import { getPaths } from './settings'
 import { loadState, saveState } from './store'
 
@@ -60,6 +66,39 @@ export function attachStagedToDownload(staged) {
   record.stagedId = staged.id
   saveState(state)
   return true
+}
+
+/**
+ * 校验下载记录绑定的压缩包路径是否属于这条记录（按文件名解析 modId）。
+ * 历史数据里出现过 TweakXL 记录指向 redscript 压缩包的情况；错绑时按 modId 在下载目录自愈，
+ * 找不到就当作「未预留」，避免解压/删除时操作错文件。
+ */
+function resolveArchiveBinding(record) {
+  const recordModId = Number(record.modId) || 0
+  const savedPath = record.archivePath || ''
+  if (savedPath && fs.existsSync(savedPath)) {
+    const parsedId = parseModIdFromArchiveName(path.basename(savedPath))
+    if (!parsedId || !recordModId || parsedId === recordModId) {
+      return { archivePath: savedPath, archiveExists: true }
+    }
+  }
+  // 错绑或文件不存在：按 modId 在下载目录里找正确的包
+  if (recordModId) {
+    try {
+      const dir = packagesDir()
+      const match = fs.readdirSync(dir).find((name) => {
+        const parsedId = parseModIdFromArchiveName(name)
+        return parsedId === recordModId
+      })
+      if (match) {
+        return { archivePath: path.join(dir, match), archiveExists: true }
+      }
+    } catch {
+      /* 下载目录不存在时忽略 */
+    }
+  }
+  // 错绑的路径不展示（指向别的模组的包，展示只会误导），统一显示为「未预留」
+  return { archivePath: '', archiveExists: false }
 }
 
 export function formatSize(bytes) {
@@ -113,6 +152,24 @@ export function listDownloadRecords() {
   const stagingMods = loadStaging().mods
   const stagedById = new Map(stagingMods.map((mod) => [mod.id, mod]))
 
+  // 下载目录里按文件名解析出的 modId 建立索引，用于校验/自愈错绑的压缩包路径
+  const filesByModId = new Map()
+  try {
+    const dir = packagesDir()
+    fs.readdirSync(dir).forEach((name) => {
+      const full = path.join(dir, name)
+      try {
+        if (!fs.statSync(full).isFile()) return
+      } catch {
+        return
+      }
+      const parsedId = parseModIdFromArchiveName(name)
+      if (parsedId) filesByModId.set(parsedId, full)
+    })
+  } catch {
+    /* 下载目录不存在时忽略 */
+  }
+
   return {
     records: state.downloads.map((record) => {
       const staged = inferStagedRecord(record, stagedById, stagingMods)
@@ -135,7 +192,7 @@ export function listDownloadRecords() {
         // 失效的绑定要清掉，否则「部署」按钮会指向一个已经不存在的 staging Mod
         stagedId: staged ? record.stagedId : '',
         stagedTypes: staged ? staged.types.join(' + ') : '',
-        archiveExists: Boolean(record.archivePath && fs.existsSync(record.archivePath)),
+        ...resolveArchiveBinding(record),
         deployed: Boolean(staged && deployedIds.has(record.stagedId))
       }
     }),
