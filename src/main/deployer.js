@@ -175,14 +175,29 @@ export function parseGameVersionFromName(name) {
 }
 
 export function parseModIdFromArchiveName(name) {
-  const tokens = String(name || '').replace(/\.zip$/i, '').split(/\s+/)
-  for (let i = 0; i < tokens.length - 1; i += 1) {
-    if (/^\d{2,7}$/.test(tokens[i]) && /^\d+\.\d+(\.\d+)?$/.test(tokens[i + 1])) {
-      return Number(tokens[i])
+  const base = String(name || '').replace(/\.(zip|7z|rar|tar|gz|tgz)$/i, '')
+  const parts = base.split(/\s+/).filter(Boolean)
+  // Nexus 下载文件名有两种格式：
+  //   <名称> <文件版本> <modId> <文件版本> <时间戳> <hash>   例：Native Settings UI 1.97 3518 1.97 2026-10-22T15-26Z x.zip
+  //   <名称> <modId> <文件版本> <时间戳> <hash>             例：TweakXL 4197 1.12.0 2026-10-25T08-00Z x.zip
+  // 共同点是时间戳前一定有 modId，且 modId 通常 >= 100（版本号通常 < 100），
+  // 所以从时间戳往前找第一个 >=100 的整数最稳。
+  const tsIndex = parts.findIndex((part) => /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}Z$/.test(part))
+  if (tsIndex > 0) {
+    for (let i = tsIndex - 1; i >= 0; i -= 1) {
+      const value = Number(parts[i])
+      if (Number.isInteger(value) && value >= 100) return value
     }
+  }
+  // 没有时间戳时兜底：取第一个 >=100 的整数段
+  for (const part of parts) {
+    const value = Number(part)
+    if (Number.isInteger(value) && value >= 100) return value
   }
   return 0
 }
+
+
 
 function slugify(name) {
   return String(name)
